@@ -186,18 +186,17 @@ impl LensClient {
         let mut full_text_buffer = String::new();
 
         // Extract OCR Data
-        if let Some(objects_res) = &response.objects_response {
-            if let Some(text_struct) = &objects_res.text {
-                if let Some(layout) = &text_struct.text_layout {
-                    for p in &layout.paragraphs {
-                        let parsed_para = self.parse_paragraph(p);
+        if let Some(layout) = response.objects_response.as_ref()
+            .and_then(|res| res.text.as_ref())
+            .and_then(|text| text.text_layout.as_ref())
+        {
+            for p in &layout.paragraphs {
+                let parsed_para = self.parse_paragraph(p);
 
-                        full_text_buffer.push_str(&parsed_para.text);
-                        full_text_buffer.push('\n'); // Standardize paragraph separation
+                full_text_buffer.push_str(&parsed_para.text);
+                full_text_buffer.push('\n'); // Standardize paragraph separation
 
-                        paragraphs_list.push(parsed_para);
-                    }
-                }
+                paragraphs_list.push(parsed_para);
             }
         }
 
@@ -282,12 +281,11 @@ impl LensClient {
         if let Some(objects_res) = &response.objects_response {
             for gleam in &objects_res.deep_gleams {
                 if let Some(trans_data) = &gleam.translation {
-                    if let Some(status) = &trans_data.status {
-                        if status.code == TranslationStatus::Success as i32 {
-                            if !trans_data.translation.is_empty() {
-                                translations.push(trans_data.translation.clone());
-                            }
-                        }
+                    let is_success = trans_data.status.as_ref()
+                        .map(|s| s.code == TranslationStatus::Success as i32)
+                        .unwrap_or(false);
+                    if is_success && !trans_data.translation.is_empty() {
+                        translations.push(trans_data.translation.clone());
                     }
                 }
             }
