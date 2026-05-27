@@ -8,10 +8,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
     let copy_to_clipboard = args.iter().any(|arg| arg == "--clip");
-    let filtered_args: Vec<&String> = args.iter().skip(1).filter(|arg| *arg != "--clip").collect();
+    let save_to_text = args.iter().any(|arg| arg == "--text");
+    let filtered_args: Vec<&String> = args.iter().skip(1)
+        .filter(|arg| *arg != "--clip" && *arg != "--text")
+        .collect();
 
     if filtered_args.is_empty() {
-        eprintln!("Usage: {} <path_to_image> [--clip]", args[0]);
+        eprintln!("Usage: {} <path_to_image> [--clip] [--text]", args[0]);
         return Ok(());
     }
 
@@ -19,41 +22,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = LensClient::new(None);
 
-    println!("Processing image: {}", image_path);
+    let silent = copy_to_clipboard || save_to_text;
+
+    if !silent {
+        println!("Processing image: {}", image_path);
+    }
     match client.process_image_path(image_path, Some("en")).await {
         Ok(result) => {
-            println!("--- Full Text ---");
-            println!("{}", result.full_text);
+            if !silent {
+                println!("--- Full Text ---");
+                println!("{}", result.full_text);
 
-            println!("\n--- Detailed Structure ---");
-            println!("Found {} paragraphs.", result.paragraphs.len());
-            for (i, para) in result.paragraphs.iter().enumerate() {
-                println!("Paragraph {}: {} lines", i + 1, para.lines.len());
-                if let Some(geom) = para.lines.first().and_then(|line| line.geometry.as_ref()) {
-                    println!(
-                        "  -> First line pos: x={:.2}, y={:.2}, w={:.2}",
-                        geom.center_x, geom.center_y, geom.width
-                    );
+                println!("\n--- Detailed Structure ---");
+                println!("Found {} paragraphs.", result.paragraphs.len());
+                for (i, para) in result.paragraphs.iter().enumerate() {
+                    println!("Paragraph {}: {} lines", i + 1, para.lines.len());
+                    if let Some(geom) = para.lines.first().and_then(|line| line.geometry.as_ref()) {
+                        println!(
+                            "  -> First line pos: x={:.2}, y={:.2}, w={:.2}",
+                            geom.center_x, geom.center_y, geom.width
+                        );
+                    }
                 }
-            }
 
-            if let Some(trans) = result.translation {
-                println!("\n--- Translation ---");
-                println!("{}", trans);
+                if let Some(trans) = result.translation {
+                    println!("\n--- Translation ---");
+                    println!("{}", trans);
+                }
+                println!("------------------");
             }
-            println!("------------------");
 
             if copy_to_clipboard {
                 match arboard::Clipboard::new() {
                     Ok(mut ctx) => {
                         if let Err(e) = ctx.set_text(result.full_text.clone()) {
                             eprintln!("Error copying to clipboard: {}", e);
-                        } else {
+                        } else if !silent {
                             println!("Result successfully copied to clipboard!");
                         }
                     }
                     Err(e) => {
                         eprintln!("Failed to initialize clipboard context: {}", e);
+                    }
+                }
+            }
+
+            if save_to_text {
+                use std::fs::File;
+                use std::io::Write;
+                use std::path::Path;
+
+                let output_path = Path::new(image_path).with_extension("txt");
+                match File::create(&output_path) {
+                    Ok(mut file) => {
+                        if let Err(e) = file.write_all(result.full_text.as_bytes()) {
+                            eprintln!("Error writing to file: {}", e);
+                        } else if !silent {
+                            println!("Result successfully saved to {:?}", output_path);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error creating file: {}", e);
                     }
                 }
             }
