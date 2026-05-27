@@ -29,13 +29,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Found {} paragraphs.", result.paragraphs.len());
             for (i, para) in result.paragraphs.iter().enumerate() {
                 println!("Paragraph {}: {} lines", i + 1, para.lines.len());
-                if let Some(first_line) = para.lines.first() {
-                    if let Some(geom) = &first_line.geometry {
-                        println!(
-                            "  -> First line pos: x={:.2}, y={:.2}, w={:.2}",
-                            geom.center_x, geom.center_y, geom.width
-                        );
-                    }
+                if let Some(geom) = para.lines.first().and_then(|line| line.geometry.as_ref()) {
+                    println!(
+                        "  -> First line pos: x={:.2}, y={:.2}, w={:.2}",
+                        geom.center_x, geom.center_y, geom.width
+                    );
                 }
             }
 
