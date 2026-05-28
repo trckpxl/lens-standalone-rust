@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
-                if let Some(trans) = result.translation {
+                if let Some(trans) = &result.translation {
                     println!("\n--- Translation ---");
                     println!("{}", trans);
                 }
