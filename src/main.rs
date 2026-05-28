@@ -9,12 +9,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let copy_to_clipboard = args.iter().any(|arg| arg == "--clip");
     let save_to_text = args.iter().any(|arg| arg == "--text");
+    let copy_translation = args.iter().any(|arg| arg == "--tl");
     let filtered_args: Vec<&String> = args.iter().skip(1)
-        .filter(|arg| *arg != "--clip" && *arg != "--text")
+        .filter(|arg| *arg != "--clip" && *arg != "--text" && *arg != "--tl")
         .collect();
 
     if filtered_args.is_empty() {
-        eprintln!("Usage: {} <path_to_image> [--clip] [--text]", args[0]);
+        eprintln!("Usage: {} <path_to_image> [--clip] [--text] [--tl]", args[0]);
         return Ok(());
     }
 
@@ -22,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = LensClient::new(None);
 
-    let silent = copy_to_clipboard || save_to_text;
+    let silent = copy_to_clipboard || save_to_text || copy_translation;
 
     if !silent {
         println!("Processing image: {}", image_path);
@@ -63,6 +64,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Err(e) => {
                         eprintln!("Failed to initialize clipboard context: {}", e);
+                    }
+                }
+            }
+
+            if copy_translation {
+                match &result.translation {
+                    Some(trans) => {
+                        match arboard::Clipboard::new() {
+                            Ok(mut ctx) => {
+                                if let Err(e) = ctx.set_text(trans.clone()) {
+                                    eprintln!("Error copying translation to clipboard: {}", e);
+                                } else if !silent {
+                                    println!("Translation successfully copied to clipboard!");
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to initialize clipboard context: {}", e);
+                            }
+                        }
+                    }
+                    None => {
+                        eprintln!("Warning: No translation was found to copy to clipboard.");
                     }
                 }
             }
